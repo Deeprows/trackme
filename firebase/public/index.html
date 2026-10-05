@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live location</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{height:100%;margin:0;font-family:system-ui,sans-serif}
+  #map{position:absolute;inset:0}
+  #card{position:absolute;z-index:1000;left:12px;right:12px;bottom:12px;max-width:480px;margin:auto;
+    background:#fff;border-radius:20px;padding:16px 18px;box-shadow:0 6px 24px rgba(0,0,0,.2)}
+  #who{font-weight:800;font-size:18px} #addr{margin:6px 0;color:#333}
+  #meta{color:#666;font-size:13px} a.btn{display:block;margin-top:10px;text-align:center;background:#2563eb;
+    color:#fff;text-decoration:none;padding:11px;border-radius:12px;font-weight:700}
+  .ended{filter:grayscale(1);opacity:.85}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="card"><div id="who">Loading…</div><div id="addr"></div><div id="evt" style="font-weight:700;color:#166534;margin:4px 0"></div><div id="meta"></div>
+  <a id="open" class="btn" target="_blank" rel="noopener" style="display:none">Open in Maps</a></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// Paste your Firebase WEB app config here (Console > Project settings > Your apps).
+firebase.initializeApp({ apiKey: "REPLACE", authDomain: "REPLACE.firebaseapp.com", projectId: "REPLACE" });
+
+const $ = id => document.getElementById(id);
+const token = location.pathname.split('/').filter(Boolean).pop();
+const map = L.map('map').setView([30.04, 31.23], 3);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap'}).addTo(map);
+let marker, dmarker, exp, first = true, ended = false;
+
+function end(msg) {
+  ended = true; $('who').textContent = msg; $('addr').textContent = ''; $('evt').textContent = '';
+  $('meta').textContent = 'Ask them to share a new link.'; $('card').classList.add('ended');
+}
+
+firebase.firestore().collection('liveShares').doc(token).onSnapshot(s => {
+  if (!s.exists) return end('This link is invalid or has ended.');
+  const d = s.data(); exp = d.expiresAt.toDate();
+  if (!d.active || exp < new Date()) return end('Sharing has ended.');
+  const pos = [d.latitude, d.longitude];
+  marker ? marker.setLatLng(pos) : (marker = L.marker(pos).addTo(map));
+  first ? (map.setView(pos, 16), first = false) : map.panTo(pos);
+  if (d.destLat != null) {
+    const dp = [d.destLat, d.destLng];
+    dmarker ? dmarker.setLatLng(dp) : (dmarker = L.marker(dp, {opacity: .7}).addTo(map).bindTooltip(d.destName || 'Destination', {permanent: true}));
+  }
+  const to = d.destName ? ' to ' + d.destName : '';
+  $('who').textContent = d.arrived ? d.ownerName + ' has arrived' + (d.destName ? ' at ' + d.destName : '')
+    : d.ownerName + ' is sharing live location' + to;
+  $('addr').textContent = d.address || '';
+  $('evt').textContent = d.lastEvent ? '🔔 ' + d.lastEvent + (d.lastEventAt ? ' · ' + d.lastEventAt.toDate().toLocaleTimeString() : '') : '';
+  const t = d.updatedAt ? d.updatedAt.toDate().toLocaleTimeString() : '';
+  $('meta').textContent = 'Updated ' + t + ' · accuracy ~' + Math.round(d.accuracy) + ' m · until ' + exp.toLocaleTimeString();
+  $('open').href = 'https://www.google.com/maps/search/?api=1&query=' + pos.join(',');
+  $('open').style.display = 'block';
+}, () => end('This link is invalid or has ended.'));
+
+setInterval(() => { if (!ended && exp && exp < new Date()) end('Sharing has ended.'); }, 1000);
+</script>
+</body>
+</html>
