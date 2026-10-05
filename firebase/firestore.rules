@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn() &&
+        resource.data.ownerId == request.auth.uid;
+    }
+
+    match /shareSessions/{sessionId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.active == true;
+
+      allow read: if signedIn() && (
+        resource.data.ownerId == request.auth.uid
+      );
+
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Live sharing. The document ID is a random 24-char token, so a link is
+    // the only way in: viewers can `get` one active, unexpired doc but can
+    // never list or search. Sessions are capped at 24h and cannot be extended.
+    match /liveShares/{token} {
+      allow get: if resource.data.active == true
+        && resource.data.expiresAt > request.time;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.active == true
+        && request.resource.data.expiresAt <= request.time + duration.value(24, 'h');
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.expiresAt == resource.data.expiresAt;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && request.auth.uid == userId;
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /groups/{groupId} {
+      allow read, write: if signedIn()
+        && request.auth.uid in resource.data.memberIds;
+    }
+  }
+}
