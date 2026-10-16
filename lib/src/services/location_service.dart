@@ -35,10 +35,10 @@ class LocationService {
 
     String address = 'Address unavailable';
     try {
-      final marks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+      final marks = await Geocoding().placemarkFromCoordinates(
+  position.latitude,
+  position.longitude,
+);
       if (marks.isNotEmpty) {
         final p = marks.first;
         final parts = <String>[
