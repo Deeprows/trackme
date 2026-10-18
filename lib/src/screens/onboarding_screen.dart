@@ -22,7 +22,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   Future<void> _finish() async {
-    await SettingsService.setOnboarded();
+    try {
+      await SettingsService.setOnboarded().timeout(const Duration(seconds: 3));
+    } catch (_) {
+      // Storage failed or is slow: continue anyway so the user is never stuck here.
+    }
     widget.onDone();
   }
 
