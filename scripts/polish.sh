@@ -32,5 +32,9 @@ dart run flutter_launcher_icons -f /tmp/icons.yaml || echo "WARNING: icon genera
 dart run flutter_native_splash:create --path=/tmp/splash.yaml || echo "WARNING: splash generation failed (cosmetic, continuing)"
 if [ -f android/app/src/main/AndroidManifest.xml ]; then
   sed -i '0,/android:label="[^"]*"/s//android:label="WhereWeAre"/' android/app/src/main/AndroidManifest.xml
+  # Some devices never draw the first frame with Impeller and stay on the splash; use the Skia renderer.
+  if ! grep -q EnableImpeller android/app/src/main/AndroidManifest.xml; then
+    sed -i '0,/<\/application>/s//    <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false"\/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
+  fi
 fi
 echo "Icon, splash and app name step finished (iOS=$IOS)."
