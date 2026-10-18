@@ -26,9 +26,14 @@ class _WhereWeAreAppState extends State<WhereWeAreApp> {
   }
 
   Future<void> _boot() async {
-    final s = await SettingsService.load();
-    appLocale.value = s.language == 'system' ? null : Locale(s.language);
-    final seen = await SettingsService.isOnboarded();
+    var seen = false;
+    try {
+      final s = await SettingsService.load().timeout(const Duration(seconds: 4));
+      appLocale.value = s.language == 'system' ? null : Locale(s.language);
+      seen = await SettingsService.isOnboarded().timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // Storage unavailable or slow: never stay on the splash, start fresh.
+    }
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (mounted) setState(() => onboarded = seen);
   }
