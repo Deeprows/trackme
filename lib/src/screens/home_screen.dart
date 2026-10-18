@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:flutter/services.dart';
 
@@ -40,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   PlaceResult? selectedPlace;
   AppSettings settings = AppSettings();
   List<SavedPlace> saved = [];
-  GoogleMapController? mapController;
+  final MapController mapController = MapController();
   bool loading = false;
   String? error;
 
@@ -55,6 +56,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     liveService.stop();
     super.dispose();
+  }
+
+  void _moveMap(double lat, double lng, [double zoom = 16]) {
+    try {
+      mapController.move(LatLng(lat, lng), zoom);
+    } catch (_) {
+      // Map not ready yet; ignore.
+    }
   }
 
   void _snack(String m) =>
@@ -167,12 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
         HistoryService().add(location, settings.retentionDays);
       }
 
-      await mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(location.latitude, location.longitude),
-          16,
-        ),
-      );
+      _moveMap(location.latitude, location.longitude);
     } catch (e) {
       if (mounted) setState(() => error = e.toString());
     } finally {
@@ -233,35 +237,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 300,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  child: GoogleMap(
-                    initialCameraPosition: const CameraPosition(
-                      target: LatLng(30.0444, 31.2357),
-                      zoom: 10,
+                  child: FlutterMap(
+                    mapController: mapController,
+                    options: const MapOptions(
+                      initialCenter: LatLng(30.0444, 31.2357),
+                      initialZoom: 10,
                     ),
-                    myLocationEnabled: location != null,
-                    myLocationButtonEnabled: false,
-                    zoomControlsEnabled: false,
-                    onMapCreated: (controller) => mapController = controller,
-                    markers: {
-                      if (selectedPlace != null)
-                        Marker(
-                          markerId: const MarkerId('place'),
-                          position: LatLng(selectedPlace!.latitude, selectedPlace!.longitude),
-                          infoWindow: InfoWindow(title: selectedPlace!.name),
-                        ),
-                      if (location != null)
-                            Marker(
-                              markerId: const MarkerId('me'),
-                              position: LatLng(
-                                location.latitude,
-                                location.longitude,
-                              ),
-                              infoWindow: InfoWindow(
-                                title: 'My location',
-                                snippet: location.address,
-                              ),
-                            ),
-                    },
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.whereweare.whereweare',
+                      ),
+                      MarkerLayer(markers: [
+                        if (selectedPlace != null)
+                          Marker(
+                            point: LatLng(selectedPlace!.latitude, selectedPlace!.longitude),
+                            width: 44,
+                            height: 44,
+                            child: const Icon(Icons.place_rounded, color: Colors.red, size: 40),
+                          ),
+                        if (location != null)
+                          Marker(
+                            point: LatLng(location.latitude, location.longitude),
+                            width: 44,
+                            height: 44,
+                            child: const Icon(Icons.my_location_rounded,
+                                color: Color(0xFF2563EB), size: 32),
+                          ),
+                      ]),
+                      const RichAttributionWidget(attributions: [
+                        TextSourceAttribution('© OpenStreetMap contributors'),
+                      ]),
+                    ],
                   ),
                 ),
               ),
@@ -490,14 +497,12 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => PlaceSearchScreen(near: currentLocation)));
     if (place == null || !mounted) return;
     setState(() => selectedPlace = place);
-    await mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(place.latitude, place.longitude), 16));
+    _moveMap(place.latitude, place.longitude);
   }
 
   Future<void> _selectPlace(PlaceResult place) async {
     setState(() => selectedPlace = place);
-    await mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(place.latitude, place.longitude), 16));
+    _moveMap(place.latitude, place.longitude);
   }
 
   Future<void> _openDetails(PlaceResult p) async {
