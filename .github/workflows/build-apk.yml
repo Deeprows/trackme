@@ -28,14 +28,21 @@ jobs:
       - name: Generate Flutter platform files
         run: flutter create . --platforms=android --org=com.whereweare --project-name=whereweare
 
-      - name: Icon, splash and app name
+      - name: Icon, splash, permissions and Maps key
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: bash scripts/polish.sh
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release --dart-define=USE_FIREBASE=false
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          DEFS=""
+          if [ -n "$MAPS_API_KEY" ]; then DEFS="--dart-define=MAPS_ENABLED=true"; fi
+          flutter build apk --release --dart-define=USE_FIREBASE=false $DEFS
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
