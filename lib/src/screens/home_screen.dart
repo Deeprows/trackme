@@ -48,8 +48,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    SettingsService.load().then((v) => mounted ? setState(() => settings = v) : null);
-    SavedPlacesService().load().then((v) => mounted ? setState(() => saved = v) : null);
+    SettingsService.load()
+        .then((v) => mounted ? setState(() => settings = v) : null)
+        .catchError((_) => null);
+    SavedPlacesService()
+        .load()
+        .then((v) => mounted ? setState(() => saved = v) : null)
+        .catchError((_) => null);
   }
 
   @override
